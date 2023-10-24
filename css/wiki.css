@@ -1,0 +1,82 @@
+
+.quote {
+    font-family:Times New Roman;
+    font-size:11pt;
+    font-style:italic;
+    line-height:1px;
+}
+.quoteSRC {
+    padding-left:15px;
+}
+.quoteSRCName {
+    font-weight:bold;
+    font-style:normal;
+}
+.reference {
+    font-weight:normal;
+    font-style:normal;
+}
+.msgbox {
+    margin: 0em 2em 1em 3em;
+    border: 1px solid #888;
+    background: #ddd;
+    color: #000;
+    -border-radius: 0 8px 0 8px;
+    border-radius: 0 8px 0 8px;
+    padding: 0;
+    border-spacing: 0;
+}
+tbody {
+    display: table-row-group;
+    vertical-align: middle;
+    border-color: inherit;
+}
+tr {
+    display: table-row;
+    vertical-align: inherit;
+    border-color: inherit;
+}
+td {
+    display: table-cell;
+    vertical-align: inherit;
+}
+.msgbox td {
+    vertical-align: middle;
+    padding: 0.5em 1em 0.5em 0em;
+    width: 100%;
+}
+.msgbox .msgboximg {
+    vertical-align: middle;
+    width: 0%;
+    padding: 0.5em 1em 0.5em 1em;
+}
+.center {
+    width: 100%;
+    text-align: center;
+}
+table {
+    display: table;
+    border-collapse: separate;
+    box-sizing: border-box;
+    text-indent: initial;
+    border-spacing: 2px;
+    border-color: grey;
+}
+.breakouttitle {
+    text-align: center;
+    background: #cfc;
+    background-image: initial;
+    background-size: initial;
+    background-attachment: initial;
+    background-origin: initial;
+    background-clip: initial;
+    background-color: rgb(204, 255, 204);
+    border-top: 1px solid #6a6;
+    border-bottom: 1px solid #6a6;
+}
+.breakout {
+    float: right;
+    border: 1px solid #888;
+    background: #fff;
+    padding: 0.2em;
+}
