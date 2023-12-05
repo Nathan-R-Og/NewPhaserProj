@@ -10,21 +10,21 @@ var gameOptions = {//gameSettings
     swipeMaxTime: 1000,
     swipeMinDistance: 20,
     swipeMinNormal: 0.85,
-
+    aspectRatio: 16/9,
     quickMerge: false,
+    localStorageName: "topscore4096"
 };
 const LEFT = 0;
 const RIGHT = 1;
 const UP = 2;
 const DOWN = 3;
-/*I noticed you couldn't get the window to load the gameOptions properly for resizing;
-You might've put it after the onload? It works before the onload, so that couldve been what happened.*/
 window.onload = function() { //onload is ran when the window is ready
-    var newWidth  = (gameOptions.boardSize.cols * (gameOptions.tileSize + gameOptions.tileSpacing)) + gameOptions.tileSpacing
-    var newHeight  = (gameOptions.boardSize.rows * (gameOptions.tileSize + gameOptions.tileSpacing)) + gameOptions.tileSpacing
+    var tileAndSpacing = gameOptions.tileSize + gameOptions.tileSpacing; // set width based on game stuff
+    var width = gameOptions.boardSize.cols * tileAndSpacing;
+    width += gameOptions.tileSpacing;
     var gameConfig = { //gameConfig is passed on constructor to set Phaser settings
-        width: newWidth,
-        height: newHeight,
+        width: width,
+        height: width * gameOptions.aspectRatio, // and height based on width
         backgroundColor: 0xecf0f1,
         scene: [bootGame, playGame] //define scenes here
     }
@@ -52,6 +52,25 @@ function resizeGame() { //some math stuffs to fill the screen size better
 class playGame extends Phaser.Scene{//a scene object extends Phaser.scene to make our own
     constructor(){super("PlayGame"); }
     create(){//onCreate, basically
+        this.score = 0;
+        var restartButton = this.add.image(game.config.width / 2, game.config.height / 1.2, "restartButton");
+        restartButton.setInteractive();
+        restartButton.on("pointerdown", function(){this.scene.start("PlayGame");}, this); //onclick
+        this.add.image(game.config.width / 2, 256, "ui");
+        var gameTitle = this.add.image(10, 5, "gameLogo");
+        gameTitle.setOrigin(0, 0);
+        var howTo = this.add.image(game.config.width, 5, "howtoplay");
+        howTo.setOrigin(1, 0);
+        var logo = this.add.image(game.config.width / 2, game.config.height, "name");
+        logo.setOrigin(0.5, 1);
+        logo.setInteractive();
+        logo.on("pointerdown", function(){window.location.href = "https://www.google.com/search?q=nathan+r"});
+
+        this.scoreText = this.add.bitmapText(((game.config.width / 2) - 80) - 96, 232, "font", "0");
+        this.bestScore = localStorage.getItem(gameOptions.localStorageName); //load from browser save
+        if(this.bestScore == null) this.bestScore = 0;
+        this.bestScoreText = this.add.bitmapText(((game.config.width / 2) + 240) - 96, 232, "font", this.bestScore.toString());
+        
         this.canMove = false;
         //this.add.image(100, 100, "emptytile");
         //adds an image to the scene.
@@ -83,6 +102,9 @@ class playGame extends Phaser.Scene{//a scene object extends Phaser.scene to mak
     getTilePosition(col, row){//calculations for where to place tiles based on coordinates
         var posX = (gameOptions.tileSpacing * (col + 1)) + gameOptions.tileSize * (col + 0.5);
         var posY = (gameOptions.tileSpacing * (row + 1)) + gameOptions.tileSize * (row + 0.5);
+        var boardHeight = gameOptions.boardSize.rows * gameOptions.tileSize; // vertically centered
+        boardHeight += (gameOptions.boardSize.rows + 1) * gameOptions.tileSpacing;
+        posY += (game.config.height - boardHeight) / 2;
         return new Phaser.Geom.Point(posX, posY);
     }
     addTile(){
@@ -189,6 +211,7 @@ class playGame extends Phaser.Scene{//a scene object extends Phaser.scene to mak
                         this.boardArray[curRow][curCol].tileValue = 0; //get rid of it
                         //merge
                         if(willUpdate){
+                            this.score += Math.pow(2, this.boardArray[newRow][newCol].tileValue); // add points
                             this.boardArray[newRow][newCol].tileValue++;
                             this.boardArray[newRow][newCol].upgraded = true
                         }
@@ -204,12 +227,19 @@ class playGame extends Phaser.Scene{//a scene object extends Phaser.scene to mak
         var rowInside = row >= 0 && row < gameOptions.boardSize.rows;
         var colInside = col >= 0 && col < gameOptions.boardSize.cols;
         if(!rowInside || !colInside) return false; // if outside
+        if(this.boardArray[row][col].tileValue == 12) return false; //you won!!
         var emptySpot = this.boardArray[row][col].tileValue == 0;
         var sameValue = this.boardArray[row][col].tileValue == value;
         var alreadyUpgraded = this.boardArray[row][col].upgraded && !gameOptions.quickMerge; //quickmerge override for different playstyles
         return emptySpot || (sameValue && !alreadyUpgraded);
     }
     refreshBoard(){
+        this.scoreText.text = this.score.toString(); //convert int to string
+        if(this.score > this.bestScore){ //update top score
+            this.bestScore = this.score;
+            localStorage.setItem(gameOptions.localStorageName, this.bestScore);
+            this.bestScoreText.text = this.bestScore.toString();
+        }
         for(var y = 0; y < gameOptions.boardSize.rows; y++){
             for(var x = 0; x < gameOptions.boardSize.cols; x++){
                 var spritePosition = this.getTilePosition(x, y);
@@ -267,12 +297,18 @@ class bootGame extends Phaser.Scene{
         preload(){//use this to load resources
             //format - name, filePath
             this.load.image("emptytile", "assets/sprites/image.png");
+            this.load.image("restartButton", "assets/sprites/restart.png");
+            this.load.image("gameLogo", "assets/sprites/title.png");
+            this.load.image("name", "assets/sprites/signature.png");
+            this.load.image("howtoplay", "assets/sprites/tutorial.png");
             this.load.spritesheet("tiles", "assets/sprites/tiles.png", { // name, filePath, frameWidth, frameHeight
                 frameWidth: gameOptions.tileSize,
                 frameHeight: gameOptions.tileSize
             });
+            this.load.image("ui", "assets/sprites/ui.png"); // name, filePath, frameWidth, frameHeight
             this.load.audio("move", ["assets/sounds/move.ogg", "assets/sounds/move.mp3"]); //import audio with best compatibility
             this.load.audio("grow", ["assets/sounds/grow.ogg", "assets/sounds/grow.mp3"]);
+            this.load.bitmapFont("font", "assets/sprites/font.png", "assets/sprites/font.xml");
         }
         create(){
             console.log("game is booting...");
