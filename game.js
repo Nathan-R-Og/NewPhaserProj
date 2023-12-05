@@ -3,11 +3,18 @@ var gameOptions = {//gameSettings
     tileSize: 200,
     tileSpacing: 20,
     boardSize: {
-    rows: 5,
-    cols: 5
+    rows: 4,
+    cols: 4,
     },
-    tweenSpeed: 2000,
+    tweenSpeed: 200,
+    swipeMaxTime: 1000,
+    swipeMinDistance: 20,
+    swipeMinNormal: 0.85,
 };
+const LEFT = 0;
+const RIGHT = 1;
+const UP = 2;
+const DOWN = 3;
 /*I noticed you couldn't get the window to load the gameOptions properly for resizing;
 You might've put it after the onload? It works before the onload, so that couldve been what happened.*/
 window.onload = function() { //onload is ran when the window is ready
@@ -63,8 +70,12 @@ class playGame extends Phaser.Scene{//a scene object extends Phaser.scene to mak
         }
         this.addTile();
         this.addTile();
+
+        this.input.keyboard.on("keydown", this.handleKey, this); //keydown, callback, context
+        this.input.on("pointerup", this.handleSwipe, this); //pointerup, callback, context
+
     }
-    getTilePosition(row, col){//calculations for where to place tiles based on coordinates
+    getTilePosition(col, row){//calculations for where to place tiles based on coordinates
         var posX = (gameOptions.tileSpacing * (col + 1)) + gameOptions.tileSize * (col + 0.5);
         var posY = (gameOptions.tileSpacing * (row + 1)) + gameOptions.tileSize * (row + 0.5);
         return new Phaser.Geom.Point(posX, posY);
@@ -99,7 +110,87 @@ class playGame extends Phaser.Scene{//a scene object extends Phaser.scene to mak
             });
         }
 
+    }
+    handleKey(key){//keyboard handler
+        if(this.canMove){
+            switch(key.code){
+                case "KeyA":
+                case "ArrowLeft":
+                    this.makeMove(LEFT);
+                    break;
+                case "KeyD":
+                case "ArrowRight":
+                    this.makeMove(RIGHT);
+                    break;
+                case "KeyW":
+                case "ArrowUp":
+                    this.makeMove(UP);
+                    break;
+                case "KeyS":
+                case "ArrowDown":
+                    this.makeMove(DOWN);
+                    break;
+            }
         }
+    }
+    handleSwipe(motion){//touchscreen/mouse handler
+        if(this.canMove){
+            var swipeTime = motion.upTime - motion.downTime;//timestamps used to calculate total time
+            var fastEnough = swipeTime < gameOptions.swipeMaxTime;
+            //downs are start coords, ups are end coords.
+            var swipe = new Phaser.Geom.Point(motion.upX - motion.downX, motion.upY - motion.downY);
+            var swipeMagnitude = Phaser.Geom.Point.GetMagnitude(swipe);
+            var longEnough = swipeMagnitude > gameOptions.swipeMinDistance;
+            if(longEnough && fastEnough){
+                Phaser.Geom.Point.SetMagnitude(swipe, 1);
+                if(swipe.x > gameOptions.swipeMinNormal) this.makeMove(RIGHT);
+                if(swipe.x < -gameOptions.swipeMinNormal) this.makeMove(LEFT);
+                if(swipe.y > gameOptions.swipeMinNormal) this.makeMove(DOWN);
+                if(swipe.y < -gameOptions.swipeMinNormal) this.makeMove(UP);
+                
+            }
+        }
+    }
+    makeMove(d){
+        var dMoveX = (d == UP || d == DOWN) ? 0 : d == LEFT ? -1 : 1;
+        var dMoveY = (d == LEFT || d == RIGHT) ? 0 : d == UP ? -1 : 1;
+        this.canMove = false;
+        var movedTiles = 0;
+        //define scan ranges
+        var firstRow = (d == UP) ? 1 : 0; //set first row to 1 if moving up
+        var lastRow = gameOptions.boardSize.rows - ((d == DOWN) ? 1 : 0); //set last row to rows-1 if moving down
+        var firstCol = (d == LEFT) ? 1 : 0;//etc
+        var lastCol = gameOptions.boardSize.cols - ((d == RIGHT) ? 1 : 0);
+        for(var y = firstRow; y < lastRow; y++){
+            for(var x = firstCol; x < lastCol; x++){
+                //currs are where the tiles will end up
+                var curCol = dMoveX == 1 ? (lastCol - 1) - x : x;
+                var curRow = dMoveY == 1 ? (lastRow - 1) - y : y;
+                var tileValue = this.boardArray[curRow][curCol].tileValue;
+                if(tileValue != 0){
+                    //check if legal
+                    var newCol = curCol;
+                    var newRow = curRow;
+                    while(this.isLegalPosition(newCol + dMoveX, newRow + dMoveY)){
+                        newCol += dMoveX;
+                        newRow += dMoveY;
+                    }
+                    //set the z order
+                    movedTiles++;
+                    this.boardArray[curRow][curCol].tileSprite.depth = movedTiles;
+                    //move
+                    var newPos = this.getTilePosition(newCol, newRow);
+                    this.boardArray[curRow][curCol].tileSprite.x = newPos.x;
+                    this.boardArray[curRow][curCol].tileSprite.y = newPos.y;
+                }
+            }
+        }
+    }
+    isLegalPosition(col, row){
+        var colInside = col >= 0 && col < gameOptions.boardSize.cols;
+        var rowInside = row >= 0 && row < gameOptions.boardSize.rows;
+        return colInside && rowInside;
+    }
 }
 
 class bootGame extends Phaser.Scene{
