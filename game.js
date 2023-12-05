@@ -1,9 +1,21 @@
 var game;
+var gameOptions = {//gameSettings
+    tileSize: 300,
+    tileSpacing: 20,
+    boardSize: {
+    rows: 2,
+    cols: 4
+    }
+};
+/*I noticed you couldn't get the window to load the gameOptions properly for resizing;
+You might've put it after the onload? It works before the onload, so that couldve been what happened.*/
 window.onload = function() { //onload is ran when the window is ready
+    var newWidth  = (gameOptions.boardSize.cols * (gameOptions.tileSize + gameOptions.tileSpacing)) + gameOptions.tileSpacing
+    var newHeight  = (gameOptions.boardSize.rows * (gameOptions.tileSize + gameOptions.tileSpacing)) + gameOptions.tileSpacing
     var gameConfig = { //gameConfig is passed on constructor to set Phaser settings
-        width: 480,
-        height: 640,
-        backgroundColor: 0xff0000,
+        width: newWidth,
+        height: newHeight,
+        backgroundColor: 0xecf0f1,
         scene: [bootGame, playGame] //define scenes here
     }
     game = new Phaser.Game(gameConfig);
@@ -29,11 +41,30 @@ function resizeGame() { //some math stuffs to fill the screen size better
 
 class playGame extends Phaser.Scene{//a scene object extends Phaser.scene to make our own
     constructor(){super("PlayGame"); }
-    create(){console.log("this is my awesome game");}
+    create(){//onCreate, basically
+        //this.add.image(100, 100, "emptytile");
+        //adds an image to the scene.
+        //format - x, y, name
+        for(var y = 0; y < gameOptions.boardSize.cols; y++){
+           for(var x = 0; x < gameOptions.boardSize.rows; x++){
+                var tilePosition = this.getTilePosition(x, y);
+                this.add.image(tilePosition.x, tilePosition.y, "emptytile");
+            }
+        }
+    }
+    getTilePosition(row, col){//calculations for where to place tiles based on coordinates
+        var posX = (gameOptions.tileSpacing * (col + 1)) + gameOptions.tileSize * (col + 0.5);
+        var posY = (gameOptions.tileSpacing * (row + 1)) + gameOptions.tileSize * (row + 0.5);
+        return new Phaser.Geom.Point(posX, posY);
+    }
 }
 
 class bootGame extends Phaser.Scene{
         constructor(){super("BootGame");}
+        preload(){//use this to load resources
+            //format - name, filePath
+            this.load.image("emptytile", "assets/sprites/image.png");
+        }
         create(){
             console.log("game is booting...");
             this.scene.start("PlayGame");
