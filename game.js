@@ -6,10 +6,12 @@ var gameOptions = {//gameSettings
     rows: 4,
     cols: 4,
     },
-    tweenSpeed: 200,
+    tweenSpeed: 100,
     swipeMaxTime: 1000,
     swipeMinDistance: 20,
     swipeMinNormal: 0.85,
+
+    quickMerge: false,
 };
 const LEFT = 0;
 const RIGHT = 1;
@@ -74,6 +76,9 @@ class playGame extends Phaser.Scene{//a scene object extends Phaser.scene to mak
         this.input.keyboard.on("keydown", this.handleKey, this); //keydown, callback, context
         this.input.on("pointerup", this.handleSwipe, this); //pointerup, callback, context
 
+        this.moveSound = this.sound.add("move"); //import the sound to the scene
+        this.growSound = this.sound.add("grow");
+
     }
     getTilePosition(col, row){//calculations for where to place tiles based on coordinates
         var posX = (gameOptions.tileSpacing * (col + 1)) + gameOptions.tileSize * (col + 0.5);
@@ -87,7 +92,8 @@ class playGame extends Phaser.Scene{//a scene object extends Phaser.scene to mak
                 if(this.boardArray[y][x].tileValue == 0){
                 emptyTiles.push({
                     row: y,
-                    col: x
+                    col: x,
+                    upgraded: false //whether or not its been merged in the same turn
                 })}
             }
         }
@@ -152,10 +158,10 @@ class playGame extends Phaser.Scene{//a scene object extends Phaser.scene to mak
         }
     }
     makeMove(d){
+        this.movingTiles = 0;
         var dMoveX = (d == UP || d == DOWN) ? 0 : d == LEFT ? -1 : 1;
         var dMoveY = (d == LEFT || d == RIGHT) ? 0 : d == UP ? -1 : 1;
         this.canMove = false;
-        var movedTiles = 0;
         //define scan ranges
         var firstRow = (d == UP) ? 1 : 0; //set first row to 1 if moving up
         var lastRow = gameOptions.boardSize.rows - ((d == DOWN) ? 1 : 0); //set last row to rows-1 if moving down
@@ -171,25 +177,88 @@ class playGame extends Phaser.Scene{//a scene object extends Phaser.scene to mak
                     //check if legal
                     var newCol = curCol;
                     var newRow = curRow;
-                    while(this.isLegalPosition(newCol + dMoveX, newRow + dMoveY)){
+                    while(this.isLegalPosition(newCol + dMoveX, newRow + dMoveY, tileValue)){
                         newCol += dMoveX;
                         newRow += dMoveY;
                     }
-                    //set the z order
-                    movedTiles++;
-                    this.boardArray[curRow][curCol].tileSprite.depth = movedTiles;
-                    //move
-                    var newPos = this.getTilePosition(newCol, newRow);
-                    this.boardArray[curRow][curCol].tileSprite.x = newPos.x;
-                    this.boardArray[curRow][curCol].tileSprite.y = newPos.y;
+                    if(newRow != curRow || newCol != curCol){
+                        //move
+                        var newPos = this.getTilePosition(newCol, newRow);
+                        var willUpdate = this.boardArray[newRow][newCol].tileValue == tileValue;
+                        this.moveTile(this.boardArray[curRow][curCol].tileSprite, newPos, willUpdate);
+                        this.boardArray[curRow][curCol].tileValue = 0; //get rid of it
+                        //merge
+                        if(willUpdate){
+                            this.boardArray[newRow][newCol].tileValue++;
+                            this.boardArray[newRow][newCol].upgraded = true
+                        }
+                        else this.boardArray[newRow][newCol].tileValue = tileValue; //bring it back
+                    }
                 }
             }
         }
+        if(this.movingTiles == 0) this.canMove = true;
+        else this.moveSound.play();
     }
-    isLegalPosition(col, row){
-        var colInside = col >= 0 && col < gameOptions.boardSize.cols;
+    isLegalPosition(col, row, value){
         var rowInside = row >= 0 && row < gameOptions.boardSize.rows;
-        return colInside && rowInside;
+        var colInside = col >= 0 && col < gameOptions.boardSize.cols;
+        if(!rowInside || !colInside) return false; // if outside
+        var emptySpot = this.boardArray[row][col].tileValue == 0;
+        var sameValue = this.boardArray[row][col].tileValue == value;
+        var alreadyUpgraded = this.boardArray[row][col].upgraded && !gameOptions.quickMerge; //quickmerge override for different playstyles
+        return emptySpot || (sameValue && !alreadyUpgraded);
+    }
+    refreshBoard(){
+        for(var y = 0; y < gameOptions.boardSize.rows; y++){
+            for(var x = 0; x < gameOptions.boardSize.cols; x++){
+                var spritePosition = this.getTilePosition(x, y);
+                this.boardArray[y][x].tileSprite.x = spritePosition.x;
+                this.boardArray[y][x].tileSprite.y = spritePosition.y;
+                var tileValue = this.boardArray[y][x].tileValue;
+                if(tileValue > 0){
+                    this.boardArray[y][x].tileSprite.visible = true;
+                    this.boardArray[y][x].upgraded = false;
+                    this.boardArray[y][x].tileSprite.setFrame(tileValue - 1);
+                }
+                else this.boardArray[y][x].tileSprite.visible = false;
+            }
+        }
+        this.addTile();
+    }
+    moveTile(tile, point, upgrade){
+        this.movingTiles++;
+        tile.depth = this.movingTiles;
+        var distance = Math.abs(tile.x - point.x) + Math.abs(tile.y - point.y);//total distance (will usually be one axis)
+        this.tweens.add({ //do a tween!!
+            targets: [tile],
+            x: point.x,
+            y: point.y,
+            duration: gameOptions.tweenSpeed * distance / gameOptions.tileSize,//scale time based on distance
+            callbackScope: this,
+            onComplete: function(){
+                if(upgrade) this.upgradeTile(tile);
+                else this.endTween(tile)
+            }
+        })
+    }
+    upgradeTile(tile){ //ease the merging
+        this.growSound.play();
+        tile.setFrame(tile.frame.name + 1);
+        this.tweens.add({
+            targets: [tile],
+            scaleX: 1.1,
+            scaleY: 1.1,
+            duration: gameOptions.tweenSpeed,
+            yoyo: true,
+            repeat: 1,
+            callbackScope: this,
+            onComplete: function(){this.endTween(tile)}})
+    }
+    endTween(tile){// clean up
+        this.movingTiles --;
+        tile.depth = 0;
+        if(this.movingTiles == 0) this.refreshBoard();
     }
 }
 
@@ -201,7 +270,9 @@ class bootGame extends Phaser.Scene{
             this.load.spritesheet("tiles", "assets/sprites/tiles.png", { // name, filePath, frameWidth, frameHeight
                 frameWidth: gameOptions.tileSize,
                 frameHeight: gameOptions.tileSize
-                });
+            });
+            this.load.audio("move", ["assets/sounds/move.ogg", "assets/sounds/move.mp3"]); //import audio with best compatibility
+            this.load.audio("grow", ["assets/sounds/grow.ogg", "assets/sounds/grow.mp3"]);
         }
         create(){
             console.log("game is booting...");
